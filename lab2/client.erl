@@ -6,7 +6,8 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server % atom of the chat server
+    server, % atom of the chat server
+    channels % list of joined channels
 }).
 
 % Return an initial state record. This is called from GUI.
@@ -15,7 +16,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom
+        server = ServerAtom,
+        channels = []
     }.
 
 % handle/2 handles each kind of request from GUI
@@ -30,7 +32,16 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
     % {reply, ok, St} ;
-    {reply, {error, not_implemented, "join not implemented"}, St} ;
+    case lists:member(St#client_st.server, registered()) of % Check if we can find the main server
+        true -> Result = genserver:request(St#client_st.server, {join, Channel, self()}), % If true make join request to main server, goes to handle in server.erl
+            case Result of % check result of request to main server
+                joined -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}}; % If we could join add new channel to clients list of channels
+                in_channel -> {reply, {error, already_in_channel, "Already in channel"}} % else report error that we are already in the channel
+            end;
+
+        false -> {reply, {error, server_not_reachable, "Couldn't reach server"}} % if we couldn't find the main server throw error message.
+    end;
+    %{reply, {error, not_implemented, "join not implemented"}, St} ;
 
 % Leave channel
 handle(St, {leave, Channel}) ->
