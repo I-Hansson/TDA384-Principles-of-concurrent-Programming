@@ -21,7 +21,16 @@ handler(St, {join, Channel, Client}) ->
         % If channel not in main server state. Create new channel process with the joining client in clients list, i.e channel state
         false -> genserver:start(list_to_atom(Channel), [Client], fun channel/2),
             {reply, joined, [Channel | St]}
-    end.
+    end;
+
+handler(St, stop_channels) ->
+    lists:foreach(
+        fun(Channel) ->
+            genserver:stop(list_to_atom(Channel))
+        end
+        , St
+    ),
+    {reply, ok, []}.
 
 
 channel(Clients, {join, Client}) ->
@@ -53,4 +62,5 @@ channel(Clients, {message_send, Channel, Msg, Nick, Client}) ->
 % Stop the server process registered to the given name,
 % together with any other associated processes
 stop(ServerAtom) ->
+    genserver:request(ServerAtom, stop_channels),
     genserver:stop(ServerAtom).

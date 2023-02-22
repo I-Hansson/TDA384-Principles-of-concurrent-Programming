@@ -31,7 +31,6 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Join channel
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
-    % {reply, ok, St} ;
     case lists:member(St#client_st.server, registered()) of % Check if we can find the main server
         true -> % If true make join request to main server, goes to handle in server.erl
             case catch(genserver:request(St#client_st.server, {join, Channel, self()})) of % check result of request to main server
@@ -61,19 +60,15 @@ handle(St, {leave, Channel}) ->
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
     % TODO: Implement this function
-    %case lists:member(St#client_st.server, registered()) of  
-        case catch(genserver:request(list_to_atom(Channel), {message_send, Channel, Msg, St#client_st.nick, self()})) of 
-            delivered -> {reply, ok, St};
-            x -> io:fwrite("~p~n", [x]);
-            failed -> {reply, {error, user_not_joined, "not_sent"},St};
-            timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St};
-            exit -> {reply, {error, server_not_reached, "Server timed out"}, St}
-            
-        end;
-        %false -> {reply, {error, server_not_reached, "Server not reached"}, St}
-    %end;
-
-    % {reply, ok, St} ;
+    case whereis(list_to_atom(Channel)) of
+        undefined -> {reply, {error, server_not_reached, "Server not reached"}, St};
+        Name -> 
+            case catch(genserver:request(Name, {message_send, Channel, Msg, St#client_st.nick, self()})) of 
+                delivered -> {reply, ok, St};
+                failed -> {reply, {error, user_not_joined, "not_sent"},St};
+                timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St}
+            end
+    end;
     
 
 % This case is only relevant for the distinction assignment!
