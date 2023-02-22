@@ -33,13 +33,14 @@ handle(St, {join, Channel}) ->
     % TODO: Implement this function
     % {reply, ok, St} ;
     case lists:member(St#client_st.server, registered()) of % Check if we can find the main server
-        true -> Result = genserver:request(St#client_st.server, {join, Channel, self()}), % If true make join request to main server, goes to handle in server.erl
-            case Result of % check result of request to main server
+        true -> % If true make join request to main server, goes to handle in server.erl
+            case catch(genserver:request(St#client_st.server, {join, Channel, self()})) of % check result of request to main server
                 joined -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}}; % If we could join add new channel to clients list of channels
-                in_channel -> {reply, {error, already_in_channel, "Already in channel"}} % else report error that we are already in the channel
+                in_channel -> {reply, {error, user_already_joined, "Already in channel"}, St}; % else report error that we are already in the channel
+                timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St}
             end;
 
-        false -> {reply, {error, server_not_reachable, "Couldn't reach server"}} % if we couldn't find the main server throw error message.
+        false -> {reply, {error, server_not_reached, "Couldn't find server"}, St} % if we couldn't find the main server throw error message.
     end;
     %{reply, {error, not_implemented, "join not implemented"}, St} ;
 
@@ -49,10 +50,10 @@ handle(St, {leave, Channel}) ->
     case lists:member(St#client_st.server, registered()) of 
         true -> Result = genserver:request(list_to_atom(Channel), {leave, self()}),
         case Result of 
-            left -> {reply, ok, {St#client_st{channels = lists:delete(Channel, St#client_st.channels) }}};
-            not_in_channel -> {reply, {error, not_in_channel, "not in channel"}}
+            left -> {reply, ok, St#client_st{channels = lists:delete(Channel, St#client_st.channels) }};
+            not_in_channel -> {reply, {error, user_not_joined, "not in channel"},St}
         end;
-        false -> {reply, {error, server_not_reachable, "Couldn't reach server"}}
+        false -> {reply, ok,St}
     end;
     % {reply, ok, St} ;
 
@@ -60,14 +61,17 @@ handle(St, {leave, Channel}) ->
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
     % TODO: Implement this function
-    case lists:member(St#client_st.server, registered()) of 
-        true -> Result = genserver:request(list_to_atom(Channel), {message_send, self(), Msg, St#client_st.nick, Channel}),
-        case Result of 
+    %case lists:member(St#client_st.server, registered()) of  
+        case catch(genserver:request(list_to_atom(Channel), {message_send, Channel, Msg, St#client_st.nick, self()})) of 
             delivered -> {reply, ok, St};
-            failed -> {reply, {error, not_sent, "not_sent"}}
+            x -> io:fwrite("~p~n", [x]);
+            failed -> {reply, {error, user_not_joined, "not_sent"},St};
+            timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St};
+            exit -> {reply, {error, server_not_reached, "Server timed out"}, St}
+            
         end;
-        false -> {reply, {error, server_not_reachable, "Couldn't reach server"}}
-    end;
+        %false -> {reply, {error, server_not_reached, "Server not reached"}, St}
+    %end;
 
     % {reply, ok, St} ;
     

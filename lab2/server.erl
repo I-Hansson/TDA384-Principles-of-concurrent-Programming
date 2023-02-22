@@ -32,13 +32,13 @@ channel(Clients, {join, Client}) ->
 
 channel(Clients, {leave, Client}) ->
     case lists:member(Client, Clients) of % Check if client is in channel state, i.e list of clients for a channel
-        false -> {reply, in_channel, Clients}; % if true reply with in_channel, because we are already joined
+        false -> {reply, not_in_channel, Clients}; % if true reply with in_channel, because we are already joined
         true -> {reply, left, lists:delete(Client, Clients)} % if false reply with joined to tell the client of a successful join
     end;
 
-channel(Clients, {message_send, Client, Msg, Nick, Channel}) ->
+channel(Clients, {message_send, Channel, Msg, Nick, Client}) ->
     case lists:member(Client, Clients) of % Check if client is in channel state, i.e list of clients for a channel
-        false -> {reply, failed, Clients}; % if true reply with in_channel, because we are already joined
+        false -> {reply, failed, Clients}; 
         true -> 
             spawn(fun() -> lists:foreach(
             fun (Pid) ->
@@ -47,12 +47,10 @@ channel(Clients, {message_send, Client, Msg, Nick, Channel}) ->
                     true -> genserver:request(Pid, {message_receive, Channel, Nick, Msg})
                 end
             end, Clients) end),
-            {reply, delivered, Clients} % if false reply with joined to tell the client of a successful join
+            {reply, delivered, Clients} 
     end.
 
 % Stop the server process registered to the given name,
 % together with any other associated processes
 stop(ServerAtom) ->
-    % TODO Implement function
-    % Return ok
-    not_implemented.
+    genserver:stop(ServerAtom).
