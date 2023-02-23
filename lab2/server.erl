@@ -35,18 +35,18 @@ handler(St, stop_channels) ->
         fun(Channel) ->
             genserver:stop(list_to_atom(Channel))
         end, St#server_st.channels),
-    {reply, ok, []};
+    {reply, ok, []};  % for each channel/process running, stop it. 
 
 handler(St, {add_nick, Nick}) ->
-    case lists:member(Nick, St#server_st.nicks) of
-        false -> {reply, ok, St#server_st{nicks = [Nick | St#server_st.nicks]}};
-        true -> {reply, ok, St}
+    case lists:member(Nick, St#server_st.nicks) of  % (if) Nick exists in List of nicks
+        false -> {reply, ok, St#server_st{nicks = [Nick | St#server_st.nicks]}}; % if nick dont exists, add nick to list and return ok
+        true -> {reply, ok, St} % if exists return ok
     end;
 
-handler(St, {check_nick, Nick, NewNick}) ->
-    case lists:member(NewNick, St#server_st.nicks) of
-        true -> {reply, taken, St};
-        false -> {reply, free, St#server_st{nicks = replace(Nick, NewNick, St#server_st.nicks)}}
+handler(St, {check_nick, Nick, NewNick}) -> 
+    case lists:member(NewNick, St#server_st.nicks) of % Checks if the new new nick is in the list of nicks
+        true -> {reply, taken, St}; % return taken 
+        false -> {reply, free, St#server_st{nicks = replace(Nick, NewNick, St#server_st.nicks)}} % deletes the old nick from the list and append the new nick, change state
     end.
     
 
@@ -64,30 +64,16 @@ channel(Clients, {leave, Client}) ->
 
 channel(Clients, {message_send, Channel, Msg, Nick, Client}) ->
     case lists:member(Client, Clients) of % Check if client is in channel state, i.e list of clients for a channel
-        false -> {reply, failed, Clients}; 
+        false -> {reply, failed, Clients}; % If not reply with failed
         true -> 
-            spawn(fun() -> lists:foreach(
+            spawn(fun() -> lists:foreach( % Create a process for looping through all clients in channel and "message" them
             fun (Pid) ->
                 if 
-                    Pid == Client -> skip;
+                    Pid == Client -> skip; % Skip if sender
                     true -> genserver:request(Pid, {message_receive, Channel, Nick, Msg})
                 end
             end, Clients) end),
-            {reply, delivered, Clients} 
-    end;
-
-channel(Clients, {check_nick, Nick, From}) ->
-    Nicks = lists:map(fun (Client) ->
-            case Client == From of
-                false -> genserver:request(Client, whoami);
-                true -> ""
-            end
-        end,
-        Clients
-    ),
-    case lists:member(Nick, Nicks) of 
-        true -> {reply, taken, Clients};
-        false -> {reply, free, Clients}
+            {reply, delivered, Clients} % reply with delivered 
     end.
     
 
@@ -97,6 +83,8 @@ stop(ServerAtom) ->
     genserver:request(ServerAtom, stop_channels),
     genserver:stop(ServerAtom).
 
+% Replace an element in the given list
+% returns the list with the item replaced 
 replace(Old, New, List) ->
     NewList = lists:delete(Old, List),
     [New | NewList].

@@ -82,12 +82,12 @@ handle(St, {message_send, Channel, Msg}) ->
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
-    case whereis(St#client_st.server) of
-        undefined -> {reply, {error, server_not_reached, "Server not reached"}, St};
+    case whereis(St#client_st.server) of % checks if server is not undifined
+        undefined -> {reply, {error, server_not_reached, "Server not reached"}, St}; % if servers is undefined throw error
         Name ->
-            case catch(genserver:request(Name, {check_nick, St#client_st.nick, NewNick})) of
-                free ->  {reply, ok, St#client_st{nick = NewNick}};
-                taken -> {reply, {error, nick_taken, "Nick already taken"}, St}
+            case catch(genserver:request(Name, {check_nick, St#client_st.nick, NewNick})) of % Check if nick is available 
+                free ->  {reply, ok, St#client_st{nick = NewNick}}; % Update if true
+                taken -> {reply, {error, nick_taken, "Nick already taken"}, St} % reply with error otherwise
             end
     end;
 
