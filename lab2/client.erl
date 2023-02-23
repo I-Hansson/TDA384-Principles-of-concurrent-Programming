@@ -1,5 +1,6 @@
 -module(client).
 -export([handle/2, initial_state/3]).
+-import(string, [equal/2]).
 
 % This record defines the structure of the state of a client.
 % Add whatever other fields you need.
@@ -32,13 +33,17 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
     case lists:member(St#client_st.server, registered()) of % Check if we can find the main server
-        true -> % If true make join request to main server, goes to handle in server.erl
-            case catch(genserver:request(St#client_st.server, {join, Channel, self()})) of % check result of request to main server
-                joined -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}}; % If we could join add new channel to clients list of channels
-                in_channel -> {reply, {error, user_already_joined, "Already in channel"}, St}; % else report error that we are already in the channel
-                timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St}
+        true -> 
+            case catch(genserver:request(St#client_st.server, {add_nick, St#client_st.nick})) of 
+                timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St};
+                ok -> case catch(genserver:request(St#client_st.server, {join, Channel, self()})) of % check result of request to main server
+                    timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St};
+                    joined -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}}; % If we could join add new channel to clients list of channels
+                    in_channel -> {reply, {error, user_already_joined, "Already in channel"}, St} % else report error that we are already in the channel
+                
+                    end
             end;
-
+            
         false -> {reply, {error, server_not_reached, "Couldn't find server"}, St} % if we couldn't find the main server throw error message.
     end;
     %{reply, {error, not_implemented, "join not implemented"}, St} ;
@@ -47,11 +52,14 @@ handle(St, {join, Channel}) ->
 handle(St, {leave, Channel}) ->
     % TODO: Implement this function
     case lists:member(St#client_st.server, registered()) of 
-        true -> Result = genserver:request(list_to_atom(Channel), {leave, self()}),
-        case Result of 
-            left -> {reply, ok, St#client_st{channels = lists:delete(Channel, St#client_st.channels) }};
-            not_in_channel -> {reply, {error, user_not_joined, "not in channel"},St}
-        end;
+        true -> 
+            case whereis(list_to_atom(Channel)) of
+                undefined -> {reply, {error, no_such_channel, "Channel does not exist"}, St};
+                Name -> case catch(genserver:request(Name, {leave, self()})) of 
+                        left -> {reply, ok, St#client_st{channels = lists:delete(Channel, St#client_st.channels) }};
+                        not_in_channel -> {reply, {error, user_not_joined, "Not in channel"},St}
+                        end
+            end;
         false -> {reply, ok,St}
     end;
     % {reply, ok, St} ;
@@ -74,7 +82,16 @@ handle(St, {message_send, Channel, Msg}) ->
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
-    {reply, ok, St#client_st{nick = NewNick}} ;
+    case whereis(St#client_st.server) of
+        undefined -> {reply, {error, server_not_reached, "Server not reached"}, St};
+        Name ->
+            case catch(genserver:request(Name, {check_nick, St#client_st.nick, NewNick})) of
+                free ->  {reply, ok, St#client_st{nick = NewNick}};
+                taken -> {reply, {error, nick_taken, "Nick already taken"}, St}
+            end
+    end;
+
+
 
 % ---------------------------------------------------------------------------
 % The cases below do not need to be changed...
@@ -97,3 +114,5 @@ handle(St, quit) ->
 % Catch-all for any unhandled requests
 handle(St, Data) ->
     {reply, {error, not_implemented, "Client does not handle this command"}, St} .
+
+
