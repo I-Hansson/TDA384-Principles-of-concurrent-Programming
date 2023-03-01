@@ -90,11 +90,11 @@ public class ForkJoinSolver
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
-            if (!globalVisited.contains(current)) {
+            if (globalVisited.add(current)) {
                 // move player to current node
                 
                 // mark node as visited
-                globalVisited.add(current);
+                //globalVisited.add(current);
                 maze.move(player, current);
                 // for every node nb adjacent to current
                 for (int nb: maze.neighbors(current)) {
@@ -117,11 +117,11 @@ public class ForkJoinSolver
                 List<ForkJoinSolver> solvers = new ArrayList<>();
                 
                 for (int nb : forks) {
-                    if (validStart.contains(nb)) {
+                    if (!validStart.add(nb)) {
                         break;
                     }
-                    validStart.add(nb);
-                    ForkJoinSolver solver = new ForkJoinSolver(maze, -1, nb);
+                    //validStart.add(nb);
+                    ForkJoinSolver solver = new ForkJoinSolver(maze, forkAfter, nb);
                     solvers.add(solver);
                     solver.fork();
                 }
@@ -130,7 +130,7 @@ public class ForkJoinSolver
                     
                     List<Integer> solverPath = solver.join();
                     if (solverPath != null) {
-                        List<Integer> result = pathFromTo(start, solverPath.get(0));
+                        List<Integer> result = pathFromTo(start, current);
                         result.addAll(solverPath);
                         return result;
                     }
