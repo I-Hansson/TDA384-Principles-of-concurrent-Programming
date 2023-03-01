@@ -20,7 +20,8 @@ import java.util.concurrent.ConcurrentSkipListSet;
 public class ForkJoinSolver
     extends SequentialSolver
 {
-    private static Set<Integer> visited = new ConcurrentSkipListSet<>();
+    private static Set<Integer> globalVisited = new ConcurrentSkipListSet<>();
+    private static Set<Integer> validStart = new ConcurrentSkipListSet<>();
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal.
@@ -89,36 +90,44 @@ public class ForkJoinSolver
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
-            if (!visited.contains(current)) {
+            if (!globalVisited.contains(current)) {
                 // move player to current node
-                maze.move(player, current);
+                
                 // mark node as visited
-                visited.add(current);
+                globalVisited.add(current);
+                maze.move(player, current);
                 // for every node nb adjacent to current
                 for (int nb: maze.neighbors(current)) {
                     // add nb to the nodes to be processed
                     frontier.push(nb);
                     // if nb has not been already visited,
                     // nb can be reached from current (i.e., current is nb's predecessor)
-                    if (!visited.contains(nb))
+                    if (!globalVisited.contains(nb))
                         predecessor.put(nb, current);
                 }
             }
 
             List<Integer> forks = new ArrayList<>();
             for (int nb : frontier) {
-                if (!visited.contains(nb)) {
+                if (!globalVisited.contains(nb)) {
                     forks.add(nb);
                 }
             }
             if (forks.size() > 1) {
                 List<ForkJoinSolver> solvers = new ArrayList<>();
+                
                 for (int nb : forks) {
+                    if (validStart.contains(nb)) {
+                        break;
+                    }
+                    validStart.add(nb);
                     ForkJoinSolver solver = new ForkJoinSolver(maze, -1, nb);
                     solvers.add(solver);
                     solver.fork();
                 }
+                
                 for (ForkJoinSolver solver : solvers) {
+                    
                     List<Integer> solverPath = solver.join();
                     if (solverPath != null) {
                         List<Integer> result = pathFromTo(start, solverPath.get(0));
