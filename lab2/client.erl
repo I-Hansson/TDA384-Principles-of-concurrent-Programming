@@ -77,9 +77,10 @@ handle(St, {message_send, Channel, Msg}) ->
                 timeout_error -> {reply, {error, server_not_reached, "Server timed out"}, St}
             end
     end;
+
     
 
-% This case is only relevant for the distinction assignment!
+% This case is only relevant for the distinction assignment
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
     case whereis(St#client_st.server) of % checks if server is not undifined
