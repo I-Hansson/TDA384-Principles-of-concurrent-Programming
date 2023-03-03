@@ -22,6 +22,7 @@ public class ForkJoinSolver
 {
     private static Set<Integer> globalVisited = new ConcurrentSkipListSet<>();
     private static Set<Integer> validStart = new ConcurrentSkipListSet<>();
+    private static boolean finishedFlag = false;
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal.
@@ -80,6 +81,9 @@ public class ForkJoinSolver
         frontier.push(start);
         // as long as not all nodes have been processed
         while (!frontier.empty()) {
+            if (finishedFlag) {
+                return null;
+            }
             // get the new node to process
             int current = frontier.pop();
             // if current node has a goal
@@ -87,6 +91,7 @@ public class ForkJoinSolver
                 // move player to goal
                 maze.move(player, current);
                 // search finished: reconstruct and return path
+                finishedFlag = true;
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
