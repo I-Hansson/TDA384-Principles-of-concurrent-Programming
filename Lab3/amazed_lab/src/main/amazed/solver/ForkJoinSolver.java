@@ -81,6 +81,8 @@ public class ForkJoinSolver
         frontier.push(start);
         // as long as not all nodes have been processed
         while (!frontier.empty()) {
+            // If finishedFlag is true. Another fork has found goal
+            // return null
             if (finishedFlag) {
                 return null;
             }
@@ -91,15 +93,13 @@ public class ForkJoinSolver
                 // move player to goal
                 maze.move(player, current);
                 // search finished: reconstruct and return path
+                // and flag to other forks.
                 finishedFlag = true;
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
             if (globalVisited.add(current)) {
                 // move player to current node
-                
-                // mark node as visited
-                //globalVisited.add(current);
                 maze.move(player, current);
                 // for every node nb adjacent to current
                 for (int nb: maze.neighbors(current)) {
@@ -112,25 +112,34 @@ public class ForkJoinSolver
                 }
             }
 
+            // Find all positions in frontier that aren't already visited
             List<Integer> forks = new ArrayList<>();
             for (int nb : frontier) {
                 if (!globalVisited.contains(nb)) {
                     forks.add(nb);
                 }
             }
+
+            // If there are more than one position in frontier that aren't visited.
+            // Begin forking procedure
             if (forks.size() > 1) {
                 List<ForkJoinSolver> solvers = new ArrayList<>();
                 
+                // For every position, fork a new solver.
+                // Store the solver in solvers list.
                 for (int nb : forks) {
+                    // If another fork has already claimed a starting position
+                    // do nothing
                     if (!validStart.add(nb)) {
                         break;
                     }
-                    //validStart.add(nb);
                     ForkJoinSolver solver = new ForkJoinSolver(maze, forkAfter, nb);
                     solvers.add(solver);
                     solver.fork();
                 }
                 
+                // Join all solvers result
+                // If goal found, join results back up the fork tree.
                 for (ForkJoinSolver solver : solvers) {
                     
                     List<Integer> solverPath = solver.join();
@@ -140,6 +149,8 @@ public class ForkJoinSolver
                         return result;
                     }
                 }
+
+                // If loop finishes without goal found. Return null.
                 return null;
             }
             
